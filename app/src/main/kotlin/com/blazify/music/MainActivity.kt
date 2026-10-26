@@ -1,0 +1,1946 @@
+/**
+ * Blazify Project (C) 2026
+ * Metrolist Project (C) 2026
+ * Licensed under GPL-3.0 | See NOTICE for contributors
+ */
+
+package com.blazify.music
+
+import com.blazify.music.utils.LaunchSignal
+import com.blazify.music.utils.loadedBitmap
+import kotlinx.coroutines.withTimeoutOrNull
+import android.Manifest
+import android.annotation.SuppressLint
+import android.app.ForegroundServiceStartNotAllowedException
+import android.app.PendingIntent
+import android.content.ComponentName
+import android.content.Intent
+import android.content.ServiceConnection
+import android.content.pm.PackageManager
+import android.os.Build
+import android.os.Bundle
+import android.widget.Toast
+import android.os.IBinder
+import android.view.View
+import android.view.WindowManager
+import android.view.Choreographer
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.compose.setContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.foundation.background
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.add
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.displayCutout
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.only
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.systemBars
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.AlertDialogDefaults
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.LocalContentColor
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.contentColorFor
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.compositionLocalOf
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.runtime.withFrameNanos
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalWindowInfo
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.util.fastAny
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import androidx.core.app.ActivityCompat
+import androidx.core.app.NotificationCompat
+import androidx.core.app.NotificationManagerCompat
+import androidx.core.content.ContextCompat
+import androidx.core.net.toUri
+import androidx.core.util.Consumer
+import androidx.core.view.WindowCompat
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.coroutineScope
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.lifecycleScope
+import androidx.media3.common.MediaItem
+import androidx.media3.common.Player
+import androidx.navigation.NavController
+import androidx.navigation.NavHostController
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.currentBackStackEntryAsState
+import androidx.navigation.compose.rememberNavController
+import coil3.compose.AsyncImage
+import coil3.imageLoader
+import coil3.request.CachePolicy
+import coil3.request.ImageRequest
+import coil3.request.allowHardware
+import coil3.request.crossfade
+import coil3.toBitmap
+import com.blazify.innertube.YouTube
+import com.blazify.innertube.models.SongItem
+import com.blazify.innertube.models.WatchEndpoint
+import com.blazify.music.constants.AppBarHeight
+import com.blazify.music.constants.AppLanguageKey
+import com.blazify.music.constants.BetaUpdatesKey
+import com.blazify.music.constants.CheckForUpdatesKey
+import com.blazify.music.constants.DarkModeKey
+import com.blazify.music.constants.DefaultOpenTabKey
+import com.blazify.music.constants.DisableScreenshotKey
+import com.blazify.music.constants.DynamicThemeKey
+import com.blazify.music.constants.EnableHighRefreshRateKey
+import com.blazify.music.constants.EnableLandscapeScalingKey
+import androidx.datastore.preferences.core.edit
+import com.blazify.music.constants.LastSeenVersionKey
+import com.blazify.music.constants.UpdateDeclinedVersionKey
+import com.blazify.music.constants.ListenTogetherInTopBarKey
+import com.blazify.music.constants.ListenTogetherUsernameKey
+import com.blazify.music.constants.LyricsProviderOrderKey
+import com.blazify.music.constants.MiniPlayerBottomSpacing
+import com.blazify.music.constants.MiniPlayerHeight
+import com.blazify.music.constants.NavigationBarAnimationSpec
+import com.blazify.music.constants.NavigationBarHeight
+import com.blazify.music.constants.PauseListenHistoryKey
+import com.blazify.music.constants.PauseSearchHistoryKey
+import com.blazify.music.constants.PreferredLyricsProvider
+import com.blazify.music.constants.PreferredLyricsProviderKey
+import com.blazify.music.constants.PureBlackKey
+import com.blazify.music.constants.SYSTEM_DEFAULT
+import com.blazify.music.constants.SelectedThemeColorKey
+import com.blazify.music.constants.SimpMusicMigrationDoneKey
+import com.blazify.music.constants.SlimNavBarHeight
+import com.blazify.music.constants.SlimNavBarKey
+import com.blazify.music.constants.StopMusicOnTaskClearKey
+import com.blazify.music.constants.UpdateNotificationsEnabledKey
+import com.blazify.music.constants.UseNewMiniPlayerDesignKey
+import com.blazify.music.db.MusicDatabase
+import com.blazify.music.db.entities.SearchHistory
+import com.blazify.music.extensions.toEnum
+import com.blazify.music.lyrics.LyricsProviderRegistry
+import com.blazify.music.models.toMediaMetadata
+import com.blazify.music.playback.DownloadUtil
+import com.blazify.music.playback.MusicService
+import com.blazify.music.playback.MusicService.MusicBinder
+import com.blazify.music.playback.PlayerConnection
+import com.blazify.music.playback.queues.YouTubeQueue
+import androidx.compose.ui.platform.LocalUriHandler
+import com.blazify.music.utils.StarPrompt
+import com.blazify.music.constants.OnboardingCompletedKey
+import com.blazify.music.ui.component.BlazeSnackbarHost
+import com.blazify.music.ui.screens.OnboardingScreen
+import com.blazify.music.ui.component.AccountSettingsDialog
+import com.blazify.music.ui.component.AppNavigationBar
+import com.blazify.music.ui.component.AppNavigationRail
+import com.blazify.music.ui.component.BottomSheetMenu
+import com.blazify.music.ui.component.BottomSheetPage
+import com.blazify.music.ui.component.LocalBottomSheetPageState
+import com.blazify.music.ui.component.LocalMenuState
+import com.blazify.music.ui.component.BottomSheetState
+import com.blazify.music.ui.component.SpotifyImportDialog
+import com.blazify.music.ui.component.rememberBottomSheetState
+import com.blazify.music.ui.player.PLAYER_DESIGN_GALLERY_ROUTE
+import com.blazify.music.ui.component.shimmer.ShimmerTheme
+import com.blazify.music.ui.menu.YouTubeSongMenu
+import com.blazify.music.ui.player.BottomSheetPlayer
+import com.blazify.music.ui.screens.Screens
+import com.blazify.music.ui.screens.navigationBuilder
+import com.blazify.music.ui.component.UpdateDialog
+import com.blazify.music.ui.screens.settings.ChangelogScreen
+import com.blazify.music.ui.screens.settings.DarkMode
+import com.blazify.music.ui.screens.settings.NavigationTab
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
+import com.blazify.music.ui.theme.BlazeGradientEnd
+import com.blazify.music.ui.theme.BlazeThemeColor
+import com.blazify.music.ui.theme.ColorSaver
+import com.blazify.music.ui.theme.DefaultThemeColor
+import com.blazify.music.ui.theme.BlazifyTheme
+import com.blazify.music.ui.theme.extractThemeColor
+import com.blazify.music.ui.utils.appBarScrollBehavior
+import com.blazify.music.ui.utils.resetHeightOffset
+import com.blazify.music.utils.SearchRoutes
+import com.blazify.music.utils.SyncUtils
+import com.blazify.music.utils.ReleaseInfo
+import androidx.activity.result.contract.ActivityResultContracts
+import com.blazify.music.utils.Updater
+import com.blazify.music.utils.dataStore
+import com.blazify.music.utils.safeDataStoreEdit
+import com.blazify.music.utils.settingsSnapshot
+import com.blazify.music.utils.get
+import com.blazify.music.utils.rememberEnumPreference
+import com.blazify.music.utils.rememberPreference
+import com.blazify.music.utils.PlaylistLink
+import com.blazify.music.utils.SharedPlaylistImport
+import com.blazify.music.utils.reportException
+import com.blazify.music.utils.setAppLocale
+import com.blazify.music.viewmodels.HomeViewModel
+import com.blazify.music.widget.PlaylistWidgetReceiver
+import com.valentinilk.shimmer.LocalShimmerTheme
+import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import timber.log.Timber
+import java.util.Locale
+import javax.inject.Inject
+
+@Suppress("DEPRECATION", "ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
+@AndroidEntryPoint
+class MainActivity : ComponentActivity() {
+    companion object {
+        private const val ACTION_SEARCH = "com.blazify.music.action.SEARCH"
+        private const val ACTION_LIBRARY = "com.blazify.music.action.LIBRARY"
+        private const val ACTION_SHUFFLE_LIKED = "com.blazify.music.action.SHUFFLE_LIKED"
+        const val ACTION_RECOGNITION = "com.blazify.music.action.RECOGNITION"
+        const val ACTION_OPEN_WIDGET_TARGET = "com.blazify.music.action.OPEN_WIDGET_TARGET"
+        const val EXTRA_AUTO_START_RECOGNITION = "auto_start_recognition"
+        const val EXTRA_WIDGET_TARGET_TYPE = "widget_target_type"
+        const val EXTRA_WIDGET_TARGET_ID = "widget_target_id"
+    }
+
+    @Inject
+    lateinit var database: MusicDatabase
+
+    @Inject
+    lateinit var downloadUtil: DownloadUtil
+
+    @Inject
+    lateinit var syncUtils: SyncUtils
+
+    @Inject
+    lateinit var listenTogetherManager: com.blazify.music.listentogether.ListenTogetherManager
+
+    private lateinit var navController: NavHostController
+    private var pendingIntent: Intent? = null
+
+    /** A playlist somebody shared, waiting to be kept or turned down. */
+    private var sharedPlaylist by mutableStateOf<PlaylistLink.Shared?>(null)
+    private var latestVersionName by mutableStateOf(BuildConfig.VERSION_NAME)
+
+    // Keep PlayerConnection as regular property - NOT mutableStateOf to prevent UI recomposition
+    // when it becomes null during onStop. Only update the snapshot for Compose when needed.
+    private var playerConnection: PlayerConnection? = null
+
+    // This is the snapshot we pass to Compose - changes here trigger recomposition
+    private var playerConnectionSnapshot by mutableStateOf<PlayerConnection?>(null)
+
+    private var isServiceBound = false
+
+    private val serviceConnection =
+        object : ServiceConnection {
+            override fun onServiceConnected(
+                name: ComponentName?,
+                service: IBinder?,
+            ) {
+                if (service is MusicBinder) {
+                    playerConnection = PlayerConnection(this@MainActivity, service, database, lifecycleScope)
+                    playerConnectionSnapshot = playerConnection
+                    listenTogetherManager.setPlayerConnection(playerConnection)
+                }
+            }
+
+            override fun onServiceDisconnected(name: ComponentName?) {
+                // Disconnect Listen Together manager
+                listenTogetherManager.setPlayerConnection(null)
+                playerConnection?.dispose()
+                // DO NOT null out playerConnection here - keep it for when service reconnects
+                // DO NOT update playerConnectionSnapshot - this is the key to preventing recomposition
+            }
+        }
+
+    private fun safeUnbindService(source: String) {
+        if (!isServiceBound) return
+        try {
+            unbindService(serviceConnection)
+        } catch (e: IllegalArgumentException) {
+            Timber.tag("MainActivity").w(e, "Service was not bound when attempting to unbind in $source")
+        } finally {
+            isServiceBound = false
+            listenTogetherManager.setPlayerConnection(null)
+            playerConnection?.dispose()
+            // DO NOT null out playerConnection here - keep it for reconnection
+            // DO NOT update playerConnectionSnapshot - this prevents UI recomposition
+        }
+    }
+
+    override fun onStart() {
+        super.onStart()
+        // Request notification permission on Android 13+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.POST_NOTIFICATIONS), 1000)
+            }
+        }
+
+        // On a cold start the service is started once Home's first frame is up. Building the
+        // player and its session takes the main thread for a good while, and done here it came
+        // before the first frame and held the launch screen; the player was ready no sooner,
+        // since the connection to it only ever arrives after that frame anyway.
+        if (!MusicService.isRunning && !firstFrameDrawn) {
+            Choreographer.getInstance().postFrameCallback {
+                window.decorView.post {
+                    firstFrameDrawn = true
+                    if (lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) startAndBindService()
+                }
+            }
+        } else {
+            startAndBindService()
+        }
+    }
+
+    private var firstFrameDrawn = false
+
+    private fun startAndBindService() {
+        // Start the playback service explicitly once so it can outlive binding.
+        // Re-issuing startForegroundService() while an existing service instance is already
+        // running can trigger "did not then call startForeground" on some Android 9 devices
+        // when the framework expects a fresh foreground promotion for that start request.
+        if (!MusicService.isRunning) {
+            val serviceIntent = Intent(this, MusicService::class.java)
+            try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    ContextCompat.startForegroundService(this, serviceIntent)
+                } else {
+                    startService(serviceIntent)
+                }
+            } catch (e: ForegroundServiceStartNotAllowedException) {
+                Timber.w(e, "Cannot start foreground service from background")
+            } catch (e: IllegalStateException) {
+                Timber.w(e, "Failed to start foreground service")
+            }
+        }
+
+        // Bind to service - if already bound, this is a no-op but ensures we stay connected
+        if (!isServiceBound) {
+            bindService(
+                Intent(this, MusicService::class.java),
+                serviceConnection,
+                BIND_AUTO_CREATE,
+            )
+            isServiceBound = true
+        }
+    }
+
+    override fun onStop() {
+        // Keep the service binding, PlayerConnection and Listen Together wiring alive while
+        // the Activity is backgrounded. The MusicService is a foreground service and keeps
+        // running, so the host must keep reporting playback state to the LT server; detaching
+        // the player listener here used to break LT for any host that wasn't staring at the
+        // app the whole session. Full teardown happens in onDestroy() via safeUnbindService().
+        super.onStop()
+    }
+
+    override fun onDestroy() {
+        if (isFinishing) {
+            listenTogetherManager.disconnect()
+        }
+        super.onDestroy()
+        // Use effective playing state so Cast (local player paused, remote playing) is included.
+        val stopServiceOnClear =
+            dataStore.get(StopMusicOnTaskClearKey, false) &&
+                playerConnection?.isEffectivelyPlaying?.value == true &&
+                isFinishing
+
+        // Full cleanup - only on actual destroy
+        playerConnection?.dispose()
+        playerConnection = null
+        playerConnectionSnapshot = null
+
+        // Unbind before stopService: a started+bound service does not stop until all clients unbind.
+        safeUnbindService("onDestroy()")
+
+        if (stopServiceOnClear) {
+            stopService(Intent(this, MusicService::class.java))
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        if (::navController.isInitialized) {
+            handleShuffleShortcutIntent(intent)
+            handleWidgetTargetIntent(intent, navController)
+            handleDeepLinkIntent(intent, navController)
+        } else {
+            pendingIntent = intent
+        }
+    }
+
+    @SuppressLint("UnusedMaterial3ScaffoldPaddingParameter")
+    @OptIn(ExperimentalMaterial3Api::class)
+    override fun onCreate(savedInstanceState: Bundle?) {
+        // The launcher theme carries the branded splash window background; swap back
+        // to the normal theme now that we're about to draw the real UI.
+        setTheme(R.style.Theme_Blazify)
+        super.onCreate(savedInstanceState)
+        // Android takes its launch screen away by itself the moment the first frame is drawn.
+        // Asked to animate that ourselves, it waited for the app's own thread — busy building
+        // the screen — and stood in place for seconds; left to Android it goes at once.
+        // Tell the service before onStart starts it, so it doesn't load the old queue for a link
+        // that is about to replace it.
+        if (savedInstanceState == null && isPlayLink(intent)) {
+            MusicService.markOpenedForLink()
+        }
+        window.decorView.layoutDirection = View.LAYOUT_DIRECTION_LTR
+        WindowCompat.setDecorFitsSystemWindows(window, false)
+
+        // Initialize Listen Together manager
+        listenTogetherManager.initialize()
+
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+            val locale =
+                dataStore[AppLanguageKey]
+                    ?.takeUnless { it == SYSTEM_DEFAULT }
+                    ?.let { Locale.forLanguageTag(it) }
+                    ?: Locale.getDefault()
+            setAppLocale(this, locale)
+        }
+
+        lifecycleScope.launch {
+            dataStore.data
+                .map { it[DisableScreenshotKey] ?: false }
+                .distinctUntilChanged()
+                .collectLatest {
+                    if (it) {
+                        window.setFlags(
+                            WindowManager.LayoutParams.FLAG_SECURE,
+                            WindowManager.LayoutParams.FLAG_SECURE,
+                        )
+                    } else {
+                        window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
+                    }
+                }
+        }
+
+        // Defer migration and version tracking to avoid blocking first frame
+        lifecycleScope.launch(Dispatchers.IO) {
+            val preferences = dataStore.data.first()
+            val currentVersion = BuildConfig.VERSION_NAME
+
+            // SimpMusic Removal Migration
+            if (preferences[SimpMusicMigrationDoneKey] != true) {
+                safeDataStoreEdit { settings ->
+                    val currentOrder = settings[LyricsProviderOrderKey] ?: ""
+                    if (currentOrder.contains("SimpMusic")) {
+                        val orderList =
+                            currentOrder
+                                .split(",")
+                                .map { it.trim() }
+                                .filter { it.isNotBlank() && it != "SimpMusic" }
+                                .toMutableList()
+                        if (orderList.isEmpty()) {
+                            settings[LyricsProviderOrderKey] = ""
+                        } else {
+                            settings[LyricsProviderOrderKey] = orderList.joinToString(",")
+                        }
+                    }
+                    if (settings[PreferredLyricsProviderKey] == "SIMPMUSIC") {
+                        settings[PreferredLyricsProviderKey] = PreferredLyricsProvider.LRCLIB.name
+                    }
+                    settings[SimpMusicMigrationDoneKey] = true
+                    settings[LastSeenVersionKey] = currentVersion
+                }
+            }
+        }
+
+        lifecycleScope.launch(Dispatchers.IO) {
+            safeDataStoreEdit { settings ->
+                settings[LastSeenVersionKey] = BuildConfig.VERSION_NAME
+            }
+        }
+
+        setContent {
+            // No splash of our own: Android's launch screen (the logo on black)
+            // covers the real loading, and the app opens straight onto Home.
+            BlazifyApp(
+                latestVersionName = latestVersionName,
+                onLatestVersionNameChange = { latestVersionName = it },
+                playerConnection = playerConnectionSnapshot,
+                database = database,
+                downloadUtil = downloadUtil,
+                syncUtils = syncUtils,
+            )
+
+            // First run: introduce what the app does before dropping into it. Until the saved
+            // answer is read it is unknown, not "not yet": taken as "not yet", every launch built
+            // the whole introduction behind the first frame and threw it away a moment later.
+            val onboardingCompleted by remember {
+                dataStore.data.map { it[OnboardingCompletedKey] ?: false }.distinctUntilChanged()
+            }.collectAsState(initial = settingsSnapshot?.let { it[OnboardingCompletedKey] ?: false })
+            if (onboardingCompleted == false) {
+                OnboardingScreen(onFinish = {
+                    lifecycleScope.launch { safeDataStoreEdit { it[OnboardingCompletedKey] = true } }
+                })
+            }
+        }
+    }
+
+    @SuppressLint("UnusedMaterial3ScaffoldPaddingParameter")
+    @OptIn(ExperimentalMaterial3Api::class)
+    @Composable
+    private fun BlazifyApp(
+        latestVersionName: String,
+        onLatestVersionNameChange: (String) -> Unit,
+        playerConnection: PlayerConnection?,
+        database: MusicDatabase,
+        downloadUtil: DownloadUtil,
+        syncUtils: SyncUtils,
+    ) {
+        val checkForUpdates by rememberPreference(CheckForUpdatesKey, defaultValue = true)
+
+        // The release being offered in the app, if any. Declared here because the
+        // check below is what fills it in.
+        val offeredRelease = remember { mutableStateOf<ReleaseInfo?>(null) }
+
+        if (BuildConfig.UPDATER_AVAILABLE) {
+            LaunchedEffect(checkForUpdates) {
+                if (checkForUpdates) {
+                    withContext(Dispatchers.IO) {
+                        val updatesEnabled = dataStore.get(CheckForUpdatesKey, true)
+                        val notifEnabled = dataStore.get(UpdateNotificationsEnabledKey, true)
+                        if (!updatesEnabled) return@withContext
+
+                        Updater.checkForUpdate(
+                            includeBetas = dataStore.get(BetaUpdatesKey, false),
+                        ).onSuccess { (releaseInfo, hasUpdate) ->
+                            if (releaseInfo != null) {
+                                onLatestVersionNameChange(releaseInfo.versionName)
+                                // Offer it in the app, once. A notification can be
+                                // swiped away before it is read, and on a device
+                                // that never granted notifications it is never seen
+                                // at all — but somebody who has just opened the app
+                                // is, by definition, looking at it.
+                                if (hasUpdate &&
+                                    dataStore.get(UpdateDeclinedVersionKey, "") != releaseInfo.tagName
+                                ) {
+                                    offeredRelease.value = releaseInfo
+                                }
+                                if (hasUpdate && notifEnabled) {
+                                    val downloadUrl = Updater.getDownloadUrlForCurrentVariant(releaseInfo)
+                                    if (downloadUrl != null) {
+                                        val intent = Intent(Intent.ACTION_VIEW, downloadUrl.toUri())
+
+                                        val flags =
+                                            PendingIntent.FLAG_UPDATE_CURRENT or
+                                                (PendingIntent.FLAG_IMMUTABLE)
+                                        val pending = PendingIntent.getActivity(this@MainActivity, 1001, intent, flags)
+
+                                        val notif =
+                                            NotificationCompat
+                                                .Builder(this@MainActivity, "updates")
+                                                .setSmallIcon(R.drawable.update)
+                                                .setContentTitle(getString(R.string.update_available_title))
+                                                .setContentText(releaseInfo.versionName)
+                                                .setContentIntent(pending)
+                                                .setAutoCancel(true)
+                                                .build()
+
+                                        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+                                            ContextCompat.checkSelfPermission(this@MainActivity, Manifest.permission.POST_NOTIFICATIONS) ==
+                                            PackageManager.PERMISSION_GRANTED
+                                        ) {
+                                            NotificationManagerCompat.from(this@MainActivity).notify(1001, notif)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    onLatestVersionNameChange(BuildConfig.VERSION_NAME)
+                }
+            }
+        }
+
+        val enableDynamicTheme by rememberPreference(DynamicThemeKey, defaultValue = true)
+        val enableHighRefreshRate by rememberPreference(EnableHighRefreshRateKey, defaultValue = true)
+
+        LaunchedEffect(enableHighRefreshRate) {
+            val window = this@MainActivity.window
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                val layoutParams = window.attributes
+                if (enableHighRefreshRate) {
+                    layoutParams.preferredDisplayModeId = 0
+                } else {
+                    val modes = window.windowManager.defaultDisplay.supportedModes
+                    val mode60 =
+                        modes.firstOrNull { kotlin.math.abs(it.refreshRate - 60f) < 1f }
+                            ?: modes.minByOrNull { kotlin.math.abs(it.refreshRate - 60f) }
+
+                    if (mode60 != null) {
+                        layoutParams.preferredDisplayModeId = mode60.modeId
+                    }
+                }
+                window.attributes = layoutParams
+            } else {
+                val params = window.attributes
+                if (enableHighRefreshRate) {
+                    params.preferredRefreshRate = 0f
+                } else {
+                    params.preferredRefreshRate = 60f
+                }
+                window.attributes = params
+            }
+        }
+
+        val darkTheme by rememberEnumPreference(DarkModeKey, defaultValue = DarkMode.AUTO)
+        val isSystemInDarkTheme = isSystemInDarkTheme()
+        val useDarkTheme =
+            remember(darkTheme, isSystemInDarkTheme) {
+                if (darkTheme == DarkMode.AUTO) isSystemInDarkTheme else darkTheme == DarkMode.ON
+            }
+
+        LaunchedEffect(useDarkTheme) {
+            setSystemBarAppearance(useDarkTheme)
+        }
+
+        val enableLandscapeScaling by rememberPreference(EnableLandscapeScalingKey, defaultValue = false)
+        val pureBlackEnabled by rememberPreference(PureBlackKey, defaultValue = true)
+        val pureBlack =
+            remember(pureBlackEnabled, useDarkTheme) {
+                pureBlackEnabled && useDarkTheme
+            }
+
+        val (selectedThemeColorInt) = rememberPreference(SelectedThemeColorKey, defaultValue = BlazeThemeColor.toArgb())
+        val selectedThemeColor = Color(selectedThemeColorInt)
+
+        val showChangelog = rememberSaveable { mutableStateOf(false) }
+
+        var themeColor by rememberSaveable(stateSaver = ColorSaver) {
+            mutableStateOf(selectedThemeColor)
+        }
+
+        val themeColorCache = remember { mutableMapOf<String, Color>() }
+
+        LaunchedEffect(selectedThemeColor) {
+            if (!enableDynamicTheme) {
+                themeColor = selectedThemeColor
+            }
+        }
+
+        LaunchedEffect(playerConnection, enableDynamicTheme, selectedThemeColor) {
+            val playerConnection = playerConnection
+            if (!enableDynamicTheme || playerConnection == null) {
+                themeColor = selectedThemeColor
+                return@LaunchedEffect
+            }
+
+            playerConnection.service.currentMediaMetadata
+                .distinctUntilChanged { old, new -> old?.id == new?.id }
+                .collectLatest { song ->
+                    if (song?.thumbnailUrl != null) {
+                        val cached = themeColorCache[song.thumbnailUrl]
+                        if (cached != null) {
+                            withFrameNanos { }
+                            themeColor = cached
+                            return@collectLatest
+                        }
+                        withContext(Dispatchers.IO) {
+                            try {
+                                val result =
+                                    imageLoader.execute(
+                                        ImageRequest
+                                            .Builder(this@MainActivity)
+                                            .data(song.thumbnailUrl)
+                                            .allowHardware(false)
+                                            .memoryCachePolicy(CachePolicy.ENABLED)
+                                            .diskCachePolicy(CachePolicy.ENABLED)
+                                            .networkCachePolicy(CachePolicy.ENABLED)
+                                            .crossfade(false)
+                                            .build(),
+                                    )
+                                val extractedColor = result.loadedBitmap()?.extractThemeColor() ?: selectedThemeColor
+                                themeColorCache[song.thumbnailUrl] = extractedColor
+                                withFrameNanos { }
+                                themeColor = extractedColor
+                            } catch (e: Exception) {
+                                withFrameNanos { }
+                                themeColor = selectedThemeColor
+                            }
+                        }
+                    } else {
+                        themeColor = selectedThemeColor
+                    }
+                }
+        }
+
+        BlazifyTheme(
+            darkTheme = useDarkTheme,
+            pureBlack = pureBlack,
+            themeColor = themeColor,
+        ) {
+            val currentDensity = LocalDensity.current
+            val windowInfo = LocalWindowInfo.current
+            val containerSize = windowInfo.containerDpSize
+            val smallestDimensionDp = minOf(containerSize.width, containerSize.height)
+
+            val densityScale = remember(smallestDimensionDp, enableLandscapeScaling) {
+                if (enableLandscapeScaling) {
+                    when {
+                        smallestDimensionDp >= 840.dp -> 1.15f
+                        smallestDimensionDp >= 720.dp -> 1.1f
+                        smallestDimensionDp >= 600.dp -> 1.05f
+                        else -> 1.0f
+                    }
+                } else {
+                    1.0f
+                }
+            }
+            val scaledDensity: Density = remember(currentDensity, densityScale) {
+                Density(
+                    density = currentDensity.density * densityScale,
+                    fontScale = currentDensity.fontScale,
+                )
+            }
+
+            CompositionLocalProvider(LocalDensity provides scaledDensity) {
+            BoxWithConstraints(
+                modifier =
+                    Modifier
+                        .fillMaxSize()
+                        .background(if (pureBlack) Color.Black else MaterialTheme.colorScheme.surface),
+            ) {
+                val density = LocalDensity.current
+                val configuration = LocalWindowInfo.current
+                val cutoutInsets = WindowInsets.displayCutout
+                val windowsInsets = WindowInsets.systemBars
+                val bottomInset = with(density) { windowsInsets.getBottom(density).toDp() }
+                val bottomInsetDp = WindowInsets.systemBars.asPaddingValues().calculateBottomPadding()
+
+                val navController = rememberNavController()
+
+                LaunchedEffect(Unit) {
+                    val lastSeenVersion = dataStore.data.first()[LastSeenVersionKey] ?: ""
+                    val currentVersion = BuildConfig.VERSION_NAME
+                    if (lastSeenVersion != currentVersion) {
+                        showChangelog.value = true
+                    }
+                }
+
+                // Asked at most three times over about six weeks and then never
+                // again. Not while anything is playing: interrupting music to
+                // ask a favour is worse than not asking.
+                var showStarPrompt by remember { mutableStateOf(false) }
+                val starUriHandler = LocalUriHandler.current
+                val starScope = rememberCoroutineScope()
+                LaunchedEffect(Unit) {
+                    val playing = playerConnectionSnapshot?.player?.isPlaying == true
+                    if (!playing && StarPrompt.onOpened(this@MainActivity)) {
+                        StarPrompt.onShown(this@MainActivity)
+                        showStarPrompt = true
+                    }
+                }
+
+                if (showStarPrompt) {
+                    AlertDialog(
+                        onDismissRequest = { showStarPrompt = false },
+                        icon = { Icon(painterResource(R.drawable.star), null) },
+                        title = { Text(stringResource(R.string.star_prompt_title)) },
+                        text = { Text(stringResource(R.string.star_prompt_body)) },
+                        confirmButton = {
+                            TextButton(onClick = {
+                                showStarPrompt = false
+                                starScope.launch { StarPrompt.stop(this@MainActivity) }
+                                starUriHandler.openUri(StarPrompt.REPO)
+                            }) { Text(stringResource(R.string.star_prompt_yes)) }
+                        },
+                        dismissButton = {
+                            Row {
+                                TextButton(onClick = {
+                                    showStarPrompt = false
+                                    starScope.launch { StarPrompt.stop(this@MainActivity) }
+                                }) { Text(stringResource(R.string.star_prompt_never)) }
+                                TextButton(onClick = { showStarPrompt = false }) {
+                                    Text(stringResource(R.string.star_prompt_later))
+                                }
+                            }
+                        },
+                    )
+                }
+
+                val homeViewModel: HomeViewModel = hiltViewModel()
+                val accountImageUrl by homeViewModel.accountImageUrl.collectAsStateWithLifecycle()
+                val navBackStackEntry by navController.currentBackStackEntryAsState()
+                val (previousTab, setPreviousTab) = rememberSaveable { mutableStateOf("home") }
+
+                val (listenTogetherInTopBar) = rememberPreference(ListenTogetherInTopBarKey, defaultValue = true)
+                val navigationItems =
+                    remember(listenTogetherInTopBar) {
+                        if (listenTogetherInTopBar) {
+                            Screens.MainScreens.filter { it != Screens.ListenTogether }
+                        } else {
+                            Screens.MainScreens
+                        }
+                    }
+                val routeIndexMap = remember(navigationItems) {
+                    navigationItems.mapIndexed { i, s -> s.route to i }.toMap()
+                }
+                val (slimNav) = rememberPreference(SlimNavBarKey, defaultValue = false)
+                val (useNewMiniPlayerDesign) = rememberPreference(UseNewMiniPlayerDesignKey, defaultValue = true)
+                val (defaultOpenTabInt) = rememberPreference(DefaultOpenTabKey, defaultValue = NavigationTab.HOME.name)
+                val defaultOpenTab = remember(defaultOpenTabInt) {
+                    try {
+                        NavigationTab.valueOf(defaultOpenTabInt)
+                    } catch (_: IllegalArgumentException) {
+                        NavigationTab.HOME
+                    }
+                }
+                val tabOpenedFromShortcut =
+                    remember {
+                        when (intent?.action) {
+                            ACTION_SEARCH -> NavigationTab.SEARCH
+                            ACTION_LIBRARY -> NavigationTab.LIBRARY
+                            else -> null
+                        }
+                    }
+
+                val topLevelScreens =
+                    remember {
+                        listOf(
+                            Screens.Home.route,
+                            Screens.Library.route,
+                            Screens.Yours.route,
+                            Screens.ListenTogether.route,
+                            "settings",
+                        )
+                    }
+
+                val (query, onQueryChange) =
+                    rememberSaveable(stateSaver = TextFieldValue.Saver) {
+                        mutableStateOf(TextFieldValue())
+                    }
+
+                val onSearch: (String) -> Unit =
+                    remember {
+                        { searchQuery ->
+                            if (searchQuery.isNotEmpty()) {
+                                navController.navigate(SearchRoutes.resultRoute(searchQuery))
+
+                                if (dataStore[PauseSearchHistoryKey] != true) {
+                                    lifecycleScope.launch(Dispatchers.IO) {
+                                        runCatching {
+                                            database.insert(SearchHistory(query = searchQuery))
+                                        }.onFailure { throwable ->
+                                            Timber
+                                                .tag("MainActivity")
+                                                .w(throwable, "Failed to save search history for query: %s", searchQuery)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                val currentRoute by remember {
+                    derivedStateOf { navBackStackEntry?.destination?.route }
+                }
+
+                val inSearchScreen by remember {
+                    derivedStateOf { currentRoute?.startsWith("search/") == true }
+                }
+                val navigationItemRoutes =
+                    remember(navigationItems) {
+                        navigationItems.map { it.route }.toSet()
+                    }
+
+                val shouldShowNavigationBar =
+                    remember(currentRoute, navigationItemRoutes) {
+                        currentRoute == null ||
+                            navigationItemRoutes.contains(currentRoute) ||
+                            currentRoute!!.startsWith("search/")
+                    }
+
+                val isLandscape = configuration.containerDpSize.width > configuration.containerDpSize.height
+                val isTablet = configuration.containerDpSize.width >= 600.dp
+
+                val showRail = (isLandscape || isTablet) && !inSearchScreen
+
+                val navPadding =
+                    if (shouldShowNavigationBar && !showRail) {
+                        if (slimNav) SlimNavBarHeight else NavigationBarHeight
+                    } else {
+                        0.dp
+                    }
+
+                val navigationBarHeight by animateDpAsState(
+                    targetValue = if (shouldShowNavigationBar && !showRail) NavigationBarHeight else 0.dp,
+                    animationSpec = NavigationBarAnimationSpec,
+                    label = "navBarHeight",
+                )
+
+                val playerBottomSheetState =
+                    rememberBottomSheetState(
+                        dismissedBound = 0.dp,
+                        collapsedBound =
+                            bottomInset +
+                                (if (!showRail && shouldShowNavigationBar) navPadding else 0.dp) +
+                                (if (useNewMiniPlayerDesign) MiniPlayerBottomSpacing else 0.dp) +
+                                MiniPlayerHeight,
+                        expandedBound = maxHeight,
+                    )
+
+                val playerReadyState =
+                    playerConnection?.service?.isPlayerReady?.collectAsStateWithLifecycle()
+                        ?: remember { mutableStateOf(false) }
+                val playerReady by playerReadyState
+                val activePlayerConnection = if (playerReady) playerConnection else null
+
+                // Home draws its own in-content header, so it gets no app-bar padding
+                val isHomeRoute = navBackStackEntry?.destination?.route == Screens.Home.route
+                val playerAwareWindowInsets =
+                    remember(
+                        bottomInset,
+                        shouldShowNavigationBar,
+                        playerBottomSheetState.isDismissed,
+                        showRail,
+                        isHomeRoute,
+                        navPadding,
+                        useNewMiniPlayerDesign,
+                    ) {
+                        // Has to match the player sheet's collapsedBound exactly,
+                        // or the last row of every list ends up under the mini
+                        // player. It was short by the spacing the new design
+                        // leaves beneath itself, and used the full navigation
+                        // bar height where the sheet uses the slim one — so the
+                        // two disagreed in both directions at once.
+                        var bottom = bottomInset
+                        if (shouldShowNavigationBar && !showRail) {
+                            bottom += navPadding
+                        }
+                        if (!playerBottomSheetState.isDismissed) {
+                            bottom += MiniPlayerHeight
+                            if (useNewMiniPlayerDesign) bottom += MiniPlayerBottomSpacing
+                        }
+                        windowsInsets
+                            .only(WindowInsetsSides.Horizontal + WindowInsetsSides.Top)
+                            .add(WindowInsets(top = if (isHomeRoute) 0.dp else AppBarHeight, bottom = bottom))
+                    }
+                appBarScrollBehavior(
+                    canScroll = {
+                        !inSearchScreen &&
+                            (playerBottomSheetState.isCollapsed || playerBottomSheetState.isDismissed)
+                    },
+                )
+
+                val topAppBarScrollBehavior =
+                    appBarScrollBehavior(
+                        canScroll = {
+                            !inSearchScreen &&
+                                (playerBottomSheetState.isCollapsed || playerBottomSheetState.isDismissed)
+                        },
+                    )
+
+                // Navigation tracking
+                LaunchedEffect(navBackStackEntry) {
+                    if (inSearchScreen) {
+                        val searchQuery =
+                            SearchRoutes.decodeQuery(
+                                navBackStackEntry?.arguments?.getString("query").orEmpty(),
+                            )
+                        onQueryChange(
+                            TextFieldValue(
+                                searchQuery,
+                                TextRange(searchQuery.length),
+                            ),
+                        )
+                    } else if (navigationItems.fastAny { it.route == navBackStackEntry?.destination?.route }) {
+                        onQueryChange(TextFieldValue())
+                    }
+
+                    // Reset scroll behavior for main navigation items
+                    if (navigationItems.fastAny { it.route == navBackStackEntry?.destination?.route }) {
+                        if (navigationItems.fastAny { it.route == previousTab }) {
+                            topAppBarScrollBehavior.state.resetHeightOffset()
+                        }
+                    }
+
+                    topAppBarScrollBehavior.state.resetHeightOffset()
+
+                    // Collapse player when navigating to equalizer
+                    if (navBackStackEntry?.destination?.route == "equalizer" &&
+                        playerBottomSheetState.isExpanded
+                    ) {
+                        playerBottomSheetState.collapseSoft()
+                    }
+
+                    // Track previous tab for animations
+                    navController.currentBackStackEntry?.destination?.route?.let {
+                        setPreviousTab(it)
+                    }
+                }
+
+                LaunchedEffect(activePlayerConnection) {
+                    val player = runCatching { activePlayerConnection?.player }.getOrNull()
+                    if (player?.currentMediaItem == null) {
+                        if (!playerBottomSheetState.isDismissed) {
+                            playerBottomSheetState.dismiss()
+                        }
+                        return@LaunchedEffect
+                    }
+
+                    if (playerBottomSheetState.isDismissed) {
+                        playerBottomSheetState.collapseSoft()
+                    }
+                }
+
+                DisposableEffect(activePlayerConnection, playerBottomSheetState) {
+                    val player = runCatching { activePlayerConnection?.player }.getOrNull()
+                        ?: return@DisposableEffect onDispose { }
+                    val listener =
+                        object : Player.Listener {
+                            override fun onMediaItemTransition(
+                                mediaItem: MediaItem?,
+                                reason: Int,
+                            ) {
+                                if (reason == Player.MEDIA_ITEM_TRANSITION_REASON_PLAYLIST_CHANGED &&
+                                    mediaItem != null &&
+                                    playerBottomSheetState.isDismissed
+                                ) {
+                                    playerBottomSheetState.collapseSoft()
+                                }
+                            }
+                        }
+                    player.addListener(listener)
+                    onDispose {
+                        player.removeListener(listener)
+                    }
+                }
+
+                var shouldShowTopBar by rememberSaveable { mutableStateOf(false) }
+
+                LaunchedEffect(navBackStackEntry, listenTogetherInTopBar) {
+                    val currentRoute = navBackStackEntry?.destination?.route
+                    val isListenTogetherScreen =
+                        currentRoute == Screens.ListenTogether.route ||
+                            currentRoute == "listen_together_from_topbar"
+                    // Home renders its own Blazify header inside the content
+                    shouldShowTopBar = currentRoute in topLevelScreens &&
+                        currentRoute != "settings" &&
+                        currentRoute != Screens.Home.route &&
+                        !(isListenTogetherScreen && listenTogetherInTopBar)
+                }
+
+                val coroutineScope = rememberCoroutineScope()
+                var sharedSong: SongItem? by remember {
+                    mutableStateOf(null)
+                }
+                val snackbarHostState = remember { SnackbarHostState() }
+
+                LaunchedEffect(Unit) {
+                    if (pendingIntent != null) {
+                        handleShuffleShortcutIntent(pendingIntent!!)
+                        handleWidgetTargetIntent(pendingIntent!!, navController)
+                        handleRecognitionIntent(pendingIntent!!, navController)
+                        handleDeepLinkIntent(pendingIntent!!, navController)
+                        pendingIntent = null
+                    } else {
+                        handleShuffleShortcutIntent(intent)
+                        handleWidgetTargetIntent(intent, navController)
+                        handleRecognitionIntent(intent, navController)
+                        handleDeepLinkIntent(intent, navController)
+                    }
+                }
+
+                DisposableEffect(Unit) {
+                    val listener =
+                        Consumer<Intent> { intent ->
+                            handleShuffleShortcutIntent(intent)
+                            handleWidgetTargetIntent(intent, navController)
+                            handleRecognitionIntent(intent, navController)
+                            handleDeepLinkIntent(intent, navController)
+                        }
+
+                    addOnNewIntentListener(listener)
+                    onDispose { removeOnNewIntentListener(listener) }
+                }
+
+                val currentTitleRes =
+                    remember(navBackStackEntry) {
+                        when (navBackStackEntry?.destination?.route) {
+                            Screens.Home.route -> R.string.home
+                            Screens.Search.route -> R.string.search
+                            Screens.Library.route -> R.string.filter_library
+                            Screens.Yours.route -> R.string.yours
+                            Screens.ListenTogether.route -> R.string.together
+                            else -> null
+                        }
+                    }
+
+                var showAccountDialog by remember { mutableStateOf(false) }
+                var showSpotifyImportDialog by remember { mutableStateOf(false) }
+
+                val pauseListenHistory by rememberPreference(PauseListenHistoryKey, defaultValue = false)
+                val eventCount by database.eventCount().collectAsStateWithLifecycle(initialValue = 0)
+                val showHistoryButton =
+                    remember(pauseListenHistory, eventCount) {
+                        !(pauseListenHistory && eventCount == 0)
+                    }
+
+                val baseBg = if (pureBlack) Color.Black else MaterialTheme.colorScheme.surfaceContainer
+
+                CompositionLocalProvider(
+                    LocalDatabase provides database,
+                    LocalNavController provides navController,
+                    LocalContentColor provides if (pureBlack) Color.White else contentColorFor(MaterialTheme.colorScheme.surface),
+                    LocalPlayerConnection provides playerConnection,
+                    LocalPlayerBottomSheetState provides playerBottomSheetState,
+                    LocalPlayerAwareWindowInsets provides playerAwareWindowInsets,
+                    LocalDownloadUtil provides downloadUtil,
+                    LocalShimmerTheme provides ShimmerTheme,
+                    LocalSyncUtils provides syncUtils,
+                    LocalListenTogetherManager provides listenTogetherManager,
+                    LocalChangelogState provides showChangelog,
+                ) {
+                    if (showChangelog.value) {
+                        ChangelogScreen(onDismiss = { showChangelog.value = false })
+                    }
+
+                    sharedPlaylist?.let { shared ->
+                        val scope = rememberCoroutineScope()
+                        var saving by remember(shared) { mutableStateOf(false) }
+                        AlertDialog(
+                            onDismissRequest = { if (!saving) sharedPlaylist = null },
+                            title = { Text(stringResource(R.string.shared_playlist_title)) },
+                            text = {
+                                Text(
+                                    pluralStringResource(
+                                        R.plurals.shared_playlist_body,
+                                        shared.songIds.size,
+                                        shared.name,
+                                        shared.songIds.size,
+                                    ),
+                                )
+                            },
+                            confirmButton = {
+                                TextButton(
+                                    enabled = !saving,
+                                    onClick = {
+                                        saving = true
+                                        scope.launch {
+                                            val outcome = SharedPlaylistImport.save(shared, database)
+                                            saving = false
+                                            sharedPlaylist = null
+                                            outcome
+                                                .onSuccess {
+                                                    Toast.makeText(
+                                                        this@MainActivity,
+                                                        getString(R.string.shared_playlist_kept, it.saved, it.total),
+                                                        Toast.LENGTH_SHORT,
+                                                    ).show()
+                                                    navController.navigate("local_playlist/${it.playlistId}")
+                                                }.onFailure {
+                                                    Toast.makeText(
+                                                        this@MainActivity,
+                                                        R.string.shared_playlist_failed,
+                                                        Toast.LENGTH_SHORT,
+                                                    ).show()
+                                                }
+                                        }
+                                    },
+                                ) {
+                                    Text(stringResource(R.string.save))
+                                }
+                            },
+                            dismissButton = {
+                                TextButton(enabled = !saving, onClick = { sharedPlaylist = null }) {
+                                    Text(stringResource(R.string.cancel))
+                                }
+                            },
+                        )
+                    }
+
+                    offeredRelease.value?.let { release ->
+                        val scope = rememberCoroutineScope()
+                        UpdateDialog(
+                            release = release,
+                            onDismiss = {
+                                offeredRelease.value = null
+                                scope.launch {
+                                    dataStore.edit { it[UpdateDeclinedVersionKey] = release.tagName }
+                                }
+                            },
+                        )
+                    }
+
+                    Scaffold(
+                        snackbarHost = { BlazeSnackbarHost(snackbarHostState) },
+                        topBar = {
+                            AnimatedVisibility(
+                                visible = shouldShowTopBar,
+                                enter = fadeIn(animationSpec = tween(durationMillis = 300)),
+                                exit = fadeOut(animationSpec = tween(durationMillis = 200)),
+                            ) {
+                                Row {
+                                    TopAppBar(
+                                        title = {
+                                            if (navBackStackEntry?.destination?.route == Screens.Home.route) {
+                                                // Blazify gradient wordmark on the home screen
+                                                Text(
+                                                    text = "Blazify",
+                                                    style = MaterialTheme.typography.titleLarge.copy(
+                                                        fontWeight = FontWeight.Bold,
+                                                        letterSpacing = 0.5.sp,
+                                                        brush = Brush.linearGradient(
+                                                            colors = listOf(BlazeThemeColor, BlazeGradientEnd),
+                                                        ),
+                                                    ),
+                                                )
+                                            } else {
+                                                Text(
+                                                    text = currentTitleRes?.let { stringResource(it) } ?: "",
+                                                    style = MaterialTheme.typography.titleLarge,
+                                                )
+                                            }
+                                        },
+                                        actions = {
+                                            // In the library, bringing a playlist over is the
+                                            // thing people come here to do; Blaze Together keeps
+                                            // its place on every other screen.
+                                            if (currentRoute == Screens.Library.route) {
+                                                TextButton(
+                                                    onClick = { showSpotifyImportDialog = true },
+                                                    shape = CircleShape,
+                                                    // A quiet capsule behind it, so it reads as
+                                                    // something to press rather than a label.
+                                                    colors =
+                                                        ButtonDefaults.textButtonColors(
+                                                            containerColor =
+                                                                MaterialTheme.colorScheme.onSurface.copy(alpha = 0.07f),
+                                                        ),
+                                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                                                    modifier = Modifier.height(34.dp),
+                                                ) {
+                                                    Icon(
+                                                        painter = painterResource(R.drawable.spotify),
+                                                        contentDescription = null,
+                                                        tint = Color.Unspecified,
+                                                        modifier = Modifier.size(18.dp),
+                                                    )
+                                                    Spacer(Modifier.width(6.dp))
+                                                    Text(
+                                                        text = stringResource(R.string.import_spotify),
+                                                        style = MaterialTheme.typography.labelLarge,
+                                                    )
+                                                }
+                                            } else {
+                                                TextButton(
+                                                    onClick = { navController.navigate("listen_together_from_topbar") },
+                                                ) {
+                                                    Image(
+                                                        painter = painterResource(R.drawable.blaze_logo),
+                                                        contentDescription = null,
+                                                        modifier = Modifier.size(20.dp),
+                                                    )
+                                                    Spacer(Modifier.width(6.dp))
+                                                    Text(stringResource(R.string.blaze_together))
+                                                }
+                                            }
+                                            IconButton(onClick = { showAccountDialog = true }) {
+                                                BadgedBox(badge = {
+                                                    if (latestVersionName != BuildConfig.VERSION_NAME) {
+                                                        Badge()
+                                                    }
+                                                }) {
+                                                    if (accountImageUrl != null) {
+                                                        AsyncImage(
+                                                            model = accountImageUrl,
+                                                            contentDescription = stringResource(R.string.account),
+                                                            modifier =
+                                                                Modifier
+                                                                    .size(24.dp)
+                                                                    .clip(CircleShape),
+                                                        )
+                                                    } else {
+                                                        Icon(
+                                                            painter = painterResource(R.drawable.account),
+                                                            contentDescription = stringResource(R.string.account),
+                                                            modifier = Modifier.size(24.dp),
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                        },
+                                        scrollBehavior = topAppBarScrollBehavior,
+                                        colors =
+                                            TopAppBarDefaults.topAppBarColors(
+                                                containerColor = if (pureBlack) Color.Black else MaterialTheme.colorScheme.surfaceContainer,
+                                                scrolledContainerColor = if (pureBlack) Color.Black else MaterialTheme.colorScheme.surfaceContainer,
+                                                titleContentColor = MaterialTheme.colorScheme.onSurface,
+                                                actionIconContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                navigationIconContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            ),
+                                        modifier =
+                                            Modifier.windowInsetsPadding(
+                                                if (showRail) {
+                                                    WindowInsets(left = NavigationBarHeight)
+                                                        .add(cutoutInsets.only(WindowInsetsSides.Start))
+                                                } else {
+                                                    cutoutInsets.only(WindowInsetsSides.Start + WindowInsetsSides.End)
+                                                },
+                                            ),
+                                    )
+                                }
+                            }
+                        },
+                        bottomBar = {
+                            val currentBackStackEntry = navController.currentBackStackEntry // reads reactively outside remember
+
+                            val onNavItemClick: (Screens, Boolean) -> Unit =
+                                remember(
+                                    navController,
+                                    coroutineScope,
+                                    topAppBarScrollBehavior,
+                                    playerBottomSheetState,
+                                    currentBackStackEntry,
+                                ) {
+                                    { screen: Screens, isSelected: Boolean ->
+                                        if (playerBottomSheetState.isExpanded) {
+                                            playerBottomSheetState.collapseSoft()
+                                        }
+                                        if (isSelected) {
+                                            val targetEntry =
+                                                try {
+                                                    val route = navController.currentBackStackEntry?.destination?.route
+                                                    if (route == SearchRoutes.ROUTE || route == "search_input") {
+                                                        // For search screens, use search_input entry
+                                                        navController.getBackStackEntry("search_input")
+                                                    } else {
+                                                        // For other screens, use current entry
+                                                        navController.currentBackStackEntry
+                                                    }
+                                                } catch (e: Exception) {
+                                                    null
+                                                }
+
+                                            // Use appropriate key based on screen type
+                                            if (screen == Screens.Search) {
+                                                val current = targetEntry?.savedStateHandle?.get<Int>("scrollToTopCount") ?: 0
+                                                targetEntry?.savedStateHandle?.set("scrollToTopCount", current + 1)
+                                            } else {
+                                                targetEntry?.savedStateHandle?.set("scrollToTop", true)
+                                            }
+
+                                            coroutineScope.launch {
+                                                topAppBarScrollBehavior.state.resetHeightOffset()
+                                            }
+                                        } else {
+                                            navController.navigate(screen.route) {
+                                                popUpTo(navController.graph.startDestinationId) {
+                                                    saveState = true
+                                                }
+                                                launchSingleTop = true
+                                                restoreState = true
+                                            }
+                                        }
+                                    }
+                                }
+
+                            val onSearchLongClick: () -> Unit =
+                                remember(navController) {
+                                    {
+                                        navController.navigate("recognition") {
+                                            launchSingleTop = true
+                                        }
+                                    }
+                                }
+
+                            // Pre-calculate values for graphicsLayer to avoid reading state during composition
+                            val navBarTotalHeight = bottomInset + NavigationBarHeight
+
+                            if (!showRail && currentRoute != "wrapped") {
+                                Box {
+                                    if (activePlayerConnection != null) {
+                                        BottomSheetPlayer(
+                                            state = playerBottomSheetState,
+                                            navController = navController,
+                                            pureBlack = pureBlack,
+                                        )
+                                    }
+
+                                    AppNavigationBar(
+                                        navigationItems = navigationItems,
+                                        currentRoute = currentRoute,
+                                        onItemClick = onNavItemClick,
+                                        pureBlack = pureBlack,
+                                        slimNav = slimNav,
+                                        onSearchLongClick = onSearchLongClick,
+                                        modifier =
+                                            Modifier
+                                                .align(Alignment.BottomCenter)
+                                                .height(bottomInset + navPadding)
+                                                // Use graphicsLayer instead of offset to avoid recomposition
+                                                // graphicsLayer runs during draw phase, not composition phase
+                                                .graphicsLayer {
+                                                    val navBarHeightPx = navigationBarHeight.toPx()
+                                                    val totalHeightPx = navBarTotalHeight.toPx()
+
+                                                    translationY =
+                                                        if (navBarHeightPx == 0f) {
+                                                            totalHeightPx
+                                                        } else {
+                                                            // Read progress only during draw phase
+                                                            val progress = playerBottomSheetState.progress.coerceIn(0f, 1f)
+                                                            val slideOffset = totalHeightPx * progress
+                                                            val hideOffset =
+                                                                totalHeightPx * (1 - navBarHeightPx / NavigationBarHeight.toPx())
+                                                            slideOffset + hideOffset
+                                                        }
+                                                },
+                                    )
+
+                                    Box(
+                                        modifier =
+                                            Modifier
+                                                .fillMaxWidth()
+                                                .align(Alignment.BottomCenter)
+                                                .height(bottomInsetDp)
+                                                // Use graphicsLayer for background color changes
+                                                .graphicsLayer {
+                                                    val progress = playerBottomSheetState.progress
+                                                    alpha =
+                                                        if (progress > 0f ||
+                                                            (useNewMiniPlayerDesign && !shouldShowNavigationBar)
+                                                        ) {
+                                                            0f
+                                                        } else {
+                                                            1f
+                                                        }
+                                                }.background(baseBg),
+                                    )
+                                }
+                            } else {
+                                if (currentRoute != "wrapped") {
+                                    if (activePlayerConnection != null) {
+                                        BottomSheetPlayer(
+                                            state = playerBottomSheetState,
+                                            navController = navController,
+                                            pureBlack = pureBlack,
+                                        )
+                                    }
+                                }
+
+                                Box(
+                                    modifier =
+                                        Modifier
+                                            .fillMaxWidth()
+                                            .align(Alignment.BottomCenter)
+                                            .height(bottomInsetDp)
+                                            // Use graphicsLayer for background color changes
+                                            .graphicsLayer {
+                                                val progress = playerBottomSheetState.progress
+                                                alpha =
+                                                    if (progress > 0f || (useNewMiniPlayerDesign && !shouldShowNavigationBar)) 0f else 1f
+                                            }.background(baseBg),
+                                )
+                            }
+                        },
+                        modifier =
+                            Modifier
+                                .fillMaxSize()
+                                .nestedScroll(topAppBarScrollBehavior.nestedScrollConnection),
+                    ) {
+                        Row(Modifier.fillMaxSize()) {
+                            val onRailItemClick: (Screens, Boolean) -> Unit =
+                                remember(navController, coroutineScope, topAppBarScrollBehavior, playerBottomSheetState) {
+                                    { screen: Screens, isSelected: Boolean ->
+                                        if (playerBottomSheetState.isExpanded) {
+                                            playerBottomSheetState.collapseSoft()
+                                        }
+
+                                        if (isSelected) {
+                                            navController.currentBackStackEntry?.savedStateHandle?.set("scrollToTop", true)
+                                            coroutineScope.launch {
+                                                topAppBarScrollBehavior.state.resetHeightOffset()
+                                            }
+                                        } else {
+                                            navController.navigate(screen.route) {
+                                                popUpTo(navController.graph.startDestinationId) {
+                                                    saveState = true
+                                                }
+                                                launchSingleTop = true
+                                                restoreState = true
+                                            }
+                                        }
+                                    }
+                                }
+
+                            val onRailSearchLongClick: () -> Unit =
+                                remember(navController) {
+                                    {
+                                        navController.navigate("recognition") {
+                                            launchSingleTop = true
+                                        }
+                                    }
+                                }
+
+                            if (showRail && currentRoute != "wrapped") {
+                                AppNavigationRail(
+                                    navigationItems = navigationItems,
+                                    currentRoute = currentRoute,
+                                    onItemClick = onRailItemClick,
+                                    pureBlack = pureBlack,
+                                    onSearchLongClick = onRailSearchLongClick,
+                                )
+                            }
+                            Box(Modifier.weight(1f)) {
+                                // NavHost with animations (Material 3 Expressive style)
+                                NavHost(
+                                    navController = navController,
+                                    startDestination =
+                                        when (tabOpenedFromShortcut ?: defaultOpenTab) {
+                                            NavigationTab.HOME -> Screens.Home
+                                            NavigationTab.LIBRARY -> Screens.Library
+                                            NavigationTab.SEARCH -> Screens.Search
+                                        }.route,
+                                    enterTransition = {
+                                        // Opened from the full player, the theme gallery is there at once
+                                        // under the player, which then fades away over it (see
+                                        // BottomSheetPlayer); sliding it in would show this page for a moment.
+                                        if (targetState.destination.route == PLAYER_DESIGN_GALLERY_ROUTE &&
+                                            playerBottomSheetState.isExpanded
+                                        ) {
+                                            return@NavHost EnterTransition.None
+                                        }
+                                        val currentRouteIndex = routeIndexMap[targetState.destination.route] ?: -1
+                                        val previousRouteIndex = routeIndexMap[initialState.destination.route] ?: -1
+
+                                        if (currentRouteIndex == -1 || currentRouteIndex > previousRouteIndex) {
+                                            slideInHorizontally { it / 8 } + fadeIn(tween(200))
+                                        } else {
+                                            slideInHorizontally { -it / 8 } + fadeIn(tween(200))
+                                        }
+                                    },
+                                    exitTransition = {
+                                        if (targetState.destination.route == PLAYER_DESIGN_GALLERY_ROUTE &&
+                                            playerBottomSheetState.isExpanded
+                                        ) {
+                                            return@NavHost ExitTransition.None
+                                        }
+                                        val currentRouteIndex = routeIndexMap[initialState.destination.route] ?: -1
+                                        val targetRouteIndex = routeIndexMap[targetState.destination.route] ?: -1
+
+                                        if (targetRouteIndex == -1 || targetRouteIndex > currentRouteIndex) {
+                                            slideOutHorizontally { -it / 8 } + fadeOut(tween(200))
+                                        } else {
+                                            slideOutHorizontally { it / 8 } + fadeOut(tween(200))
+                                        }
+                                    },
+                                    popEnterTransition = {
+                                        val currentRouteIndex = routeIndexMap[targetState.destination.route] ?: -1
+                                        val previousRouteIndex = routeIndexMap[initialState.destination.route] ?: -1
+
+                                        if (previousRouteIndex != -1 && previousRouteIndex < currentRouteIndex) {
+                                            slideInHorizontally { it / 8 } + fadeIn(tween(200))
+                                        } else {
+                                            slideInHorizontally { -it / 8 } + fadeIn(tween(200))
+                                        }
+                                    },
+                                    popExitTransition = {
+                                        val currentRouteIndex = routeIndexMap[initialState.destination.route] ?: -1
+                                        val targetRouteIndex = routeIndexMap[targetState.destination.route] ?: -1
+
+                                        if (currentRouteIndex != -1 && currentRouteIndex < targetRouteIndex) {
+                                            slideOutHorizontally { -it / 8 } + fadeOut(tween(200))
+                                        } else {
+                                            slideOutHorizontally { it / 8 } + fadeOut(tween(200))
+                                        }
+                                    },
+                                    modifier = Modifier.nestedScroll(topAppBarScrollBehavior.nestedScrollConnection),
+                                ) {
+                                    navigationBuilder(
+                                        navController = navController,
+                                        scrollBehavior = topAppBarScrollBehavior,
+                                        latestVersionName = latestVersionName,
+                                        activity = this@MainActivity,
+                                        snackbarHostState = snackbarHostState,
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    BottomSheetMenu(
+                        state = LocalMenuState.current,
+                        modifier = Modifier.align(Alignment.BottomCenter),
+                    )
+
+                    BottomSheetPage(
+                        state = LocalBottomSheetPageState.current,
+                        modifier = Modifier.align(Alignment.BottomCenter),
+                    )
+
+                    if (showSpotifyImportDialog) {
+                        SpotifyImportDialog(
+                            onDismiss = { showSpotifyImportDialog = false },
+                            onImported = { playlistId ->
+                                showSpotifyImportDialog = false
+                                navController.navigate("local_playlist/$playlistId")
+                            },
+                        )
+                    }
+
+                    if (showAccountDialog) {
+                        AccountSettingsDialog(
+                            onDismiss = {
+                                showAccountDialog = false
+                                homeViewModel.refresh()
+                            },
+                            latestVersionName = latestVersionName,
+                        )
+                    }
+
+                    sharedSong?.let { song ->
+                        playerConnection?.let {
+                            Dialog(
+                                onDismissRequest = { sharedSong = null },
+                                properties = DialogProperties(usePlatformDefaultWidth = false),
+                            ) {
+                                Surface(
+                                    modifier = Modifier.padding(24.dp),
+                                    shape = RoundedCornerShape(16.dp),
+                                    color = AlertDialogDefaults.containerColor,
+                                    tonalElevation = AlertDialogDefaults.TonalElevation,
+                                ) {
+                                    Column(
+                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                    ) {
+                                        YouTubeSongMenu(
+                                            song = song,
+                                            onDismiss = { sharedSong = null },
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            }
+        }
+    }
+
+    /**
+     * Handles the ACTION_RECOGNITION intent sent from the Music Recognizer Widget.
+     * Always navigates to the recognition screen to show the result.
+     */
+    private fun handleRecognitionIntent(
+        intent: Intent,
+        navController: NavHostController,
+    ) {
+        if (intent.action != ACTION_RECOGNITION) return
+        val autoStart = intent.getBooleanExtra(EXTRA_AUTO_START_RECOGNITION, false)
+        intent.action = null
+        intent.removeExtra(EXTRA_AUTO_START_RECOGNITION)
+        navController.navigate(if (autoStart) "recognition?autoStart=true" else "recognition") {
+            launchSingleTop = true
+        }
+    }
+
+    private sealed class WidgetTargetRoute(val route: String) {
+        data class LocalPlaylist(val id: String) : WidgetTargetRoute("local_playlist/$id")
+        data class OnlinePlaylist(val id: String) : WidgetTargetRoute("online_playlist/$id")
+        data object LikedSongs : WidgetTargetRoute("auto_playlist/liked")
+        data object DownloadedSongs : WidgetTargetRoute("auto_playlist/downloaded")
+        data class TopSongs(val limit: String) : WidgetTargetRoute("top_playlist/$limit")
+    }
+
+    // Launcher shortcut "Shuffle": plays Liked songs shuffled straight away, the same
+    // way the playlist widget starts a playlist.
+    /**
+     * The player, waiting for it if it is not connected yet. A link that opens the app arrives
+     * before the player has started, and played on a missing player the song was lost.
+     */
+    private suspend fun awaitPlayerConnection(): PlayerConnection? =
+        playerConnection ?: withTimeoutOrNull(15_000) {
+            snapshotFlow { playerConnectionSnapshot }.filterNotNull().first()
+        }
+
+    private fun handleShuffleShortcutIntent(intent: Intent) {
+        if (intent.action != ACTION_SHUFFLE_LIKED) return
+        intent.action = null
+        val serviceIntent = Intent(this, MusicService::class.java).apply {
+            action = PlaylistWidgetReceiver.ACTION_PLAY_TARGET
+            putExtra(PlaylistWidgetReceiver.EXTRA_TARGET_TYPE, PlaylistWidgetReceiver.TARGET_TYPE_LIKED)
+            putExtra(PlaylistWidgetReceiver.EXTRA_SHUFFLE, true)
+        }
+        runCatching { startService(serviceIntent) }
+    }
+
+    private fun handleWidgetTargetIntent(
+        intent: Intent,
+        navController: NavHostController,
+    ) {
+        if (intent.action != ACTION_OPEN_WIDGET_TARGET) return
+
+        val targetType = intent.getStringExtra(EXTRA_WIDGET_TARGET_TYPE)
+        val targetId = intent.getStringExtra(EXTRA_WIDGET_TARGET_ID)
+        intent.action = null
+        intent.removeExtra(EXTRA_WIDGET_TARGET_TYPE)
+        intent.removeExtra(EXTRA_WIDGET_TARGET_ID)
+
+        val normalizedTargetId = targetId?.takeIf { it.isNotBlank() }
+
+        val targetRoute = when (targetType) {
+            PlaylistWidgetReceiver.TARGET_TYPE_LOCAL ->
+                normalizedTargetId?.let { WidgetTargetRoute.LocalPlaylist(it) }
+
+            PlaylistWidgetReceiver.TARGET_TYPE_ONLINE ->
+                normalizedTargetId?.let { WidgetTargetRoute.OnlinePlaylist(it) }
+
+            PlaylistWidgetReceiver.TARGET_TYPE_LIKED ->
+                WidgetTargetRoute.LikedSongs
+
+            PlaylistWidgetReceiver.TARGET_TYPE_DOWNLOADED ->
+                WidgetTargetRoute.DownloadedSongs
+
+            PlaylistWidgetReceiver.TARGET_TYPE_TOP ->
+                WidgetTargetRoute.TopSongs(normalizedTargetId ?: "50")
+
+            else -> null
+        } ?: return
+
+        navController.navigate(targetRoute.route)
+    }
+
+    /**
+     * Whether this intent is a link that starts something playing straight away: a song, or a
+     * playlist opened from a watch link. Mirrors the branches of [handleDeepLinkIntent] that
+     * call playQueue, so the service can skip loading the old queue for it.
+     */
+    private fun isPlayLink(intent: Intent?): Boolean {
+        val uri = intent?.data ?: intent?.extras?.getString(Intent.EXTRA_TEXT)?.toUri() ?: return false
+        val path = uri.pathSegments.firstOrNull()
+        return when {
+            uri.pathSegments.any { it.equals("listen", ignoreCase = true) } -> false
+            path in setOf("playlist", "browse", "channel", "c", "search") -> false
+            path == "watch" -> uri.getQueryParameter("v") != null || uri.getQueryParameter("list") != null
+            uri.host == "youtu.be" -> path != null
+            else -> uri.getQueryParameter("list") != null
+        }
+    }
+
+    private fun handleDeepLinkIntent(
+        intent: Intent,
+        navController: NavHostController,
+    ) {
+        val uri = intent.data ?: intent.extras?.getString(Intent.EXTRA_TEXT)?.toUri() ?: return
+        intent.data = null
+        intent.removeExtra(Intent.EXTRA_TEXT)
+        val coroutineScope = lifecycle.coroutineScope
+
+        PlaylistLink.parse(uri)?.let { shared ->
+            sharedPlaylist = shared
+            return
+        }
+
+        val listenCode =
+            uri.getQueryParameter("code")
+                ?: uri.getQueryParameter("room")
+                ?: uri.pathSegments.getOrNull(1)
+        // "listen" anywhere in the path, not only at the front: the invite page
+        // is served from a project site, so the link reads /blazify/listen and
+        // the segment it used to look for is second.
+        val isListenLink =
+            uri.pathSegments.any { it.equals("listen", ignoreCase = true) } ||
+                uri.host?.equals("listen", ignoreCase = true) == true
+        if (!listenCode.isNullOrBlank() && isListenLink) {
+            val username = dataStore.get(ListenTogetherUsernameKey, "").ifBlank { "Guest" }
+            listenTogetherManager.joinRoom(listenCode, username)
+            return
+        }
+
+        when (val path = uri.pathSegments.firstOrNull()) {
+            "playlist" -> {
+                uri.getQueryParameter("list")?.let { playlistId ->
+                    if (playlistId.startsWith("OLAK5uy_")) {
+                        coroutineScope.launch(Dispatchers.IO) {
+                            YouTube
+                                .albumSongs(playlistId)
+                                .onSuccess { songs ->
+                                    songs.firstOrNull()?.album?.id?.let { browseId ->
+                                        withContext(Dispatchers.Main) {
+                                            navController.navigate("album/$browseId")
+                                        }
+                                    }
+                                }.onFailure { reportException(it) }
+                        }
+                    } else {
+                        navController.navigate("online_playlist/$playlistId")
+                    }
+                }
+            }
+
+            "browse" -> {
+                uri.lastPathSegment?.let { browseId ->
+                    navController.navigate("album/$browseId")
+                }
+            }
+
+            "channel", "c" -> {
+                uri.lastPathSegment?.let { artistId ->
+                    navController.navigate("artist/$artistId")
+                }
+            }
+
+            "search" -> {
+                uri.getQueryParameter("q")?.let {
+                    navController.navigate(SearchRoutes.resultRoute(it))
+                }
+            }
+
+            else -> {
+                val videoId =
+                    when {
+                        path == "watch" -> uri.getQueryParameter("v")
+                        uri.host == "youtu.be" -> uri.pathSegments.firstOrNull()
+                        else -> null
+                    }
+
+                val playlistId = uri.getQueryParameter("list")
+
+                if (videoId != null) {
+                    coroutineScope.launch(Dispatchers.IO) {
+                        // The lookup is only for the title and artwork that show while the song
+                        // loads. It comes back empty for some videos and mixes, and the link still
+                        // names a song, so the id from the link is what the player is given —
+                        // handing it an empty one left the app showing a song it could never play.
+                        val first =
+                            YouTube
+                                .queue(listOf(videoId), playlistId)
+                                .getOrElse {
+                                    reportException(it)
+                                    null
+                                }?.firstOrNull()
+                        withContext(Dispatchers.Main) {
+                            awaitPlayerConnection()?.playQueue(
+                                YouTubeQueue(
+                                    WatchEndpoint(videoId = first?.id ?: videoId, playlistId = playlistId),
+                                    first?.toMediaMetadata(),
+                                ),
+                            )
+                        }
+                    }
+                } else if (playlistId != null) {
+                    coroutineScope.launch(Dispatchers.IO) {
+                        YouTube
+                            .queue(null, playlistId)
+                            .onSuccess { queue ->
+                                val firstItem = queue.firstOrNull()
+                                withContext(Dispatchers.Main) {
+                                    awaitPlayerConnection()?.playQueue(
+                                        YouTubeQueue(
+                                            WatchEndpoint(videoId = firstItem?.id, playlistId = playlistId),
+                                            firstItem?.toMediaMetadata(),
+                                        ),
+                                    )
+                                }
+                            }.onFailure {
+                                reportException(it)
+                            }
+                    }
+                }
+            }
+        }
+    }
+
+    @SuppressLint("ObsoleteSdkInt")
+    private fun setSystemBarAppearance(isDark: Boolean) {
+        WindowCompat.getInsetsController(window, window.decorView.rootView).apply {
+            isAppearanceLightStatusBars = !isDark
+            isAppearanceLightNavigationBars = !isDark
+        }
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
+            window.statusBarColor = (if (isDark) Color.Transparent else Color.Black.copy(alpha = 0.2f)).toArgb()
+        }
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
+            window.navigationBarColor = (if (isDark) Color.Transparent else Color.Black.copy(alpha = 0.2f)).toArgb()
+        }
+    }
+}
+
+val LocalDatabase = staticCompositionLocalOf<MusicDatabase> { error("No database provided") }
+val LocalNavController = staticCompositionLocalOf<NavController> { error("No NavController provided") }
+// Defaults to null rather than throwing: the type is nullable and every reader
+// already null-checks. Previews shown before the player exists (onboarding, the
+// Look & Feel phone frame) live outside the provider and must not crash.
+val LocalPlayerConnection = staticCompositionLocalOf<PlayerConnection?> { null }
+val LocalPlayerBottomSheetState = staticCompositionLocalOf<BottomSheetState?> { null }
+val LocalPlayerAwareWindowInsets = compositionLocalOf<WindowInsets> { error("No WindowInsets provided") }
+val LocalDownloadUtil = staticCompositionLocalOf<DownloadUtil> { error("No DownloadUtil provided") }
+val LocalSyncUtils = staticCompositionLocalOf<SyncUtils> { error("No SyncUtils provided") }
+val LocalListenTogetherManager = staticCompositionLocalOf<com.blazify.music.listentogether.ListenTogetherManager?> { null }
+val LocalChangelogState = staticCompositionLocalOf<MutableState<Boolean>> { error("No LocalChangelogState provided") }
+val LocalIsPlayerExpanded = compositionLocalOf { false }
