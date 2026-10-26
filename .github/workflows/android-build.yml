@@ -9,10 +9,13 @@ permissions:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    name: Build Android APK
+    runs-on: ubuntu-24.04
+
+    timeout-minutes: 60
 
     steps:
-      - name: Checkout source
+      - name: Checkout source code
         uses: actions/checkout@v4
 
       - name: Setup Java 17
@@ -21,20 +24,54 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
+      - name: Configure Android SDK
+        shell: bash
+        run: |
+          echo "ANDROID_HOME=$ANDROID_SDK_ROOT" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
+          ls -la "$ANDROID_SDK_ROOT"
+
+      - name: Accept Android SDK Licenses
+        shell: bash
+        run: |
+          SDKMANAGER="$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager"
+
+          if [ ! -x "$SDKMANAGER" ]; then
+            echo "SDK Manager not found"
+            exit 1
+          fi
+
+          set +o pipefail
+          yes | "$SDKMANAGER" --licenses > /tmp/sdk-licenses.log 2>&1
+          RESULT=$?
+          set -o pipefail
+
+          tail -n 30 /tmp/sdk-licenses.log
+
+          if [ "$RESULT" -ne 0 ] && \
+             ! grep -q "All SDK package licenses accepted" /tmp/sdk-licenses.log; then
+            echo "SDK license acceptance failed"
+            exit 1
+          fi
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
 
-      - name: Build debug APK
-        run: |
-          chmod +x gradlew
-          ./gradlew :app:assembleDebug --stacktrace
+      - name: Make Gradle Executable
+        run: chmod +x gradlew
 
-      - name: Upload APK
+      - name: Show Gradle Version
+        run: ./gradlew --version
+
+      - name: Build MYTH Music Debug APK
+        run: ./gradlew :app:assembleDebug --stacktrace --no-daemon
+
+      - name: Upload MYTH Music APK
+        if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: MYTH-Music-Debug-APK
+          name: MYTH-Music-Crystal-Glass-APK
           path: app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
+          retention-days: 30
+          
